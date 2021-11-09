@@ -99,7 +99,7 @@ func generateAltSvc(ips []string) string {
 
 // getAPIServerEndpoints polls the API server and returns its endpoints as an Alt-Svc header
 func getAPIServerEndpoints(base *url.URL, client *http.Client) string {
-	versionedAPIPath := "/api"
+	versionedAPIPath := "/api/v1"
 	gv := v1.SchemeGroupVersion
 	content := rest.ClientContentConfig{
 		AcceptContentTypes: "application/json",

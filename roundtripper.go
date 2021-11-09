@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -202,7 +203,8 @@ retry:
 		rt.muPoll.Lock()
 		if now.Sub(rt.pollTs) > pollPeriod {
 			rt.pollTs = now
-			altSvc = getAPIServerEndpoints(req.URL, &http.Client{Transport: rt.rt, Timeout: 3 * time.Second})
+			baseURL, _ := url.Parse(req.URL.Scheme + "://" + req.URL.Host)
+			altSvc = getAPIServerEndpoints(baseURL, &http.Client{Transport: rt.rt, Timeout: 3 * time.Second})
 		}
 		rt.muPoll.Unlock()
 	}
