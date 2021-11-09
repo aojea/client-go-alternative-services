@@ -12,6 +12,7 @@ func NewForConfig(c *rest.Config) (*kubernetes.Clientset, error) {
 	fn := func(rt http.RoundTripper) http.RoundTripper {
 		return NewAlternativeServiceRoundTripperWithOptions(rt,
 			WithLocalhostAllowed(),
+			WithActivePolling(),
 		)
 	}
 	config.Wrap(fn)

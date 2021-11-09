@@ -17,6 +17,7 @@ import (
 
 const (
 	blockPeriod              = 20 * time.Second     // time for the reconcile loop to remove and unready endpoint
+	pollPeriod               = 60 * time.Second     // time between each poll to get the apiserver endpoints
 	defaultKubernetesService = "kubernetes.default" // API server Service/DNS name
 )
 
@@ -38,6 +39,10 @@ type alternativeServiceRoundTripper struct {
 	serverName     string    // TLS ServerName for the alternative services
 	allowLocalhost bool      // allow to use alternative services when using localhost
 	clock          clock.Clock
+
+	allowPolling bool // allow to poll the API server endpoints to get the available api servers
+	muPoll       sync.Mutex
+	pollTs       time.Time // timestamp last poll was performed
 
 	rt http.RoundTripper // wrapped round tripper
 }
@@ -64,6 +69,14 @@ func WithAlternativeServerName(serverName string) AlternativeServicesOptions {
 func WithLocalhostAllowed() AlternativeServicesOptions {
 	return func(a *alternativeServiceRoundTripper) *alternativeServiceRoundTripper {
 		a.allowLocalhost = true
+		return a
+	}
+}
+
+// WithActivePolling allows to poll the API server directly to get the list of endpoints (disabled by default)
+func WithActivePolling() AlternativeServicesOptions {
+	return func(a *alternativeServiceRoundTripper) *alternativeServiceRoundTripper {
+		a.allowPolling = true
 		return a
 	}
 }
@@ -183,6 +196,16 @@ retry:
 	}
 	// process the alt-svc header to update the cache with the alternative services
 	altSvc := resp.Header.Get("Alt-Svc")
+	// poll the api server directly if there are no headers and the period has passed
+	if rt.allowPolling && len(altSvc) == 0 {
+		now := rt.clock.Now()
+		rt.muPoll.Lock()
+		if now.Sub(rt.pollTs) > pollPeriod {
+			rt.pollTs = now
+			altSvc = getAPIServerEndpoints(req.URL, &http.Client{Transport: rt.rt, Timeout: 3 * time.Second})
+		}
+		rt.muPoll.Unlock()
+	}
 	if len(altSvc) > 0 {
 		klog.V(4).InfoS("Alternative services found", "Alt-Svc", altSvc)
 		alternativeServices, err := parseAltSvcHeader(altSvc, host)
