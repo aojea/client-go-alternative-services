@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -98,7 +99,7 @@ func generateAltSvc(ips []string) string {
 }
 
 // getAPIServerEndpoints polls the API server and returns its endpoints as an Alt-Svc header
-func getAPIServerEndpoints(base *url.URL, client *http.Client) string {
+func getAPIServerEndpoints(base *url.URL, client *http.Client) (string, error) {
 	versionedAPIPath := "/api/v1"
 	gv := v1.SchemeGroupVersion
 	content := rest.ClientContentConfig{
@@ -110,17 +111,18 @@ func getAPIServerEndpoints(base *url.URL, client *http.Client) string {
 
 	r := rest.NewRequestWithClient(base, versionedAPIPath, content, client)
 	endpoint := &v1.Endpoints{}
-	err := r.Verb("GET").
+	req := r.Verb("GET").
 		Resource("endpoints").
 		Namespace("default").
-		Name("kubernetes").
-		Do(context.Background()).
-		Into(endpoint)
-	// error handling
+		Name("kubernetes")
+	klog.V(4).InfoS("Request kubernetes.default endpoints", "request", req)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(3*time.Second))
+	defer cancel()
+	err := req.Do(ctx).Into(endpoint)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
 	ips := getEndpointIPs(endpoint)
-	return generateAltSvc(ips)
+	return generateAltSvc(ips), nil
 }

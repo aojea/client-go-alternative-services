@@ -204,7 +204,8 @@ retry:
 		if now.Sub(rt.pollTs) > pollPeriod {
 			rt.pollTs = now
 			baseURL, _ := url.Parse(req.URL.Scheme + "://" + req.URL.Host)
-			altSvc = getAPIServerEndpoints(baseURL, &http.Client{Transport: rt.rt, Timeout: 3 * time.Second})
+			altSvc, err = getAPIServerEndpoints(baseURL, &http.Client{Transport: rt.rt, Timeout: 3 * time.Second})
+			klog.V(4).InfoS("Polling API server for alternative services", "host", baseURL.String(), "error", err, "Alt-Svc", altSvc)
 		}
 		rt.muPoll.Unlock()
 	}
